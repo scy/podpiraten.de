@@ -1,0 +1,76 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Podpiraten / PiPaPo
+
+Resources:
+
+  # This bucket serves podpiraten.de
+  ContentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: podpiraten.de
+      AccessControl: PublicRead
+      WebsiteConfiguration:
+        IndexDocument: index.html
+      Tags:
+      - Key: Project
+        Value: podpiraten
+
+  # This bucket redirects www.podpiraten.de to podpiraten.de (without www.)
+  RedirectBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: www.podpiraten.de
+      WebsiteConfiguration:
+        RedirectAllRequestsTo:
+          HostName: podpiraten.de
+      Tags:
+      - Key: Project
+        Value: podpiraten
+
+  # DNS zone
+  Zone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: podpiraten.de.
+      HostedZoneTags:
+      - Key: Project
+        Value: podpiraten
+
+  # DNS records
+  Records:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      Comment: Podpiraten / PiPaPo
+      HostedZoneId: !Ref Zone
+      RecordSets:
+
+      # Currently, point podpiraten.de to Uberspace.
+      - Name: podpiraten.de.
+        Type: A
+        ResourceRecords:
+        - 82.98.87.120
+        TTL: 60
+
+      # point www.podpiraten.de to the redirect bucket
+      - Name: www.podpiraten.de.
+        Type: CNAME
+        ResourceRecords:
+        - !Sub www.podpiraten.de.s3-website-${AWS::Region}.amazonaws.com
+        TTL: 60
+
+      # set Mailgun as the MX
+      # TODO: move to AWS
+      - Name: podpiraten.de.
+        Type: MX
+        ResourceRecords:
+        - 10 mxa.mailgun.org
+        - 10 mxb.mailgun.org
+        TTL: 3600
+      - Name: podpiraten.de.
+        Type: TXT
+        ResourceRecords: [ '"v=spf1 include:mailgun.org ~all"' ]
+        TTL: 3600
+      - Name: mailo._domainkey.podpiraten.de.
+        Type: TXT
+        ResourceRecords: [ '"k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDrpw3QiCjJy18bkvdKxlYLyNrGQART7yNQUkQFMpLchox2hIRMqdFwFvoQR7v8nNZo4IF9dgMQ+WCYM5ZzHzOU8gSwiMvHiAUSwn3oiVxIvYslxs1q6hm86k2Ow3exGhm5bCy7jgPQVBRqeWs+1UpqBkTillmOb/9xI0DKCU9SmQIDAQAB"' ]
+        TTL: 3600
