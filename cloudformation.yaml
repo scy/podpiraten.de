@@ -44,19 +44,19 @@ Resources:
       HostedZoneId: !Ref Zone
       RecordSets:
 
-      # Currently, point podpiraten.de to Uberspace.
+      # point podpiraten.de to the S3 bucket hosting it
       - Name: podpiraten.de.
         Type: A
-        ResourceRecords:
-        - 82.98.87.120
-        TTL: 60
+        AliasTarget:
+          HostedZoneId: Z1BKCTXD74EZPE # ID for S3 in eu-west-1
+          DNSName: !Sub s3-website-${AWS::Region}.amazonaws.com
 
       # point www.podpiraten.de to the redirect bucket
       - Name: www.podpiraten.de.
-        Type: CNAME
-        ResourceRecords:
-        - !Sub www.podpiraten.de.s3-website-${AWS::Region}.amazonaws.com
-        TTL: 60
+        Type: A
+        AliasTarget:
+          HostedZoneId: Z1BKCTXD74EZPE # ID for S3 in eu-west-1
+          DNSName: !Sub s3-website-${AWS::Region}.amazonaws.com
 
       # set Mailgun as the MX
       # TODO: move to AWS
