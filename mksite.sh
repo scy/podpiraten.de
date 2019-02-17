@@ -2,6 +2,17 @@
 
 export LC_ALL='en_US.UTF-8'
 
+EYED3='eyeD3'
+if ! which "$EYED3" >/dev/null 2>&1; then
+	echo 'warning: eyeD3 is not available, skipping ID3 modification' >&2
+	EYED3=':'
+fi
+
+if ! which mp3info >/dev/null 2>&1; then
+	echo 'error: mp3info is not available' >&2
+	exit 1
+fi
+
 SHORTNAME='PiPaPo'
 LONGNAME='Piratenpartei Podcast'
 AUTHOR='Podpiraten'
@@ -40,6 +51,29 @@ EOF
 for txt in media/*.txt; do
 	file="$(echo "$txt" | sed 's/\.txt$/-hi.mp3/')"
 	echo "$file"
+
+	# If the MP3 does not exist, try to recreate it from split files.
+	if ! [ -e "$file" ]; then
+		splits="$(find "$(dirname "$file")" -name "$(basename "$file").?")"
+		if [ -z "$splits" ]; then
+			echo "error: $file does not exist and neither to split files for it" >&2
+			exit 1
+		else
+			cat $splits > "$file"
+		fi
+	fi
+
+	# If there is already a digest file, set the MP3's modification date based on it and check the digests.
+	if [ -e "$file.digest" ]; then
+		touch -d "@$(awk '/time\t/ { print $2 }' "$file.digest")" "$file"
+		grep -v '^time' "$file.digest" | while read -r alg hash; do
+			if ! printf '%s *%s\n' "$hash" "$file" | "${alg}sum" -c --quiet; then
+				echo "error: $alg checksum of $file seems wrong" >&2
+				exit 1
+			fi
+		done
+	fi
+
 	title="$(head -n 1 "$txt")"
 	subtitle="$(head -n 2 "$txt" | tail -n 1)"
 	people="$(head -n 3 "$txt" | tail -n 1)"
@@ -89,14 +123,12 @@ $text
 			</body>
 		</item>
 EOF
-	eyeD3 --no-tagging-time-frame --remove-comments --remove-images --to-v2.4 "$file" >/dev/null 2>&1
-	# eyeD3 -1 -a "$AUTHOR" -t "$title" -A "$SHORTNAME" -n "$num" -G 101 -Y "$year" -c "::CC-BY-SA-3.0-DE; (c) $year" "$file"
-	eyeD3 --no-tagging-time-frame -2 -a "$AUTHOR" -t "$title" -A "$SHORTNAME" -n "$num" -G 101 -Y "$year" -c "::CC-BY-SA-3.0-DE; © $year Podpiraten" --add-image=pipapo.jpg:FRONT_COVER:Logo --set-encoding=utf8 --to-v2.4 "$file" >/dev/null 2>&1
+	"$EYED3" --no-tagging-time-frame --remove-comments --remove-images --to-v2.4 "$file" >/dev/null 2>&1
+	"$EYED3" --no-tagging-time-frame -2 -a "$AUTHOR" -t "$title" -A "$SHORTNAME" -n "$num" -G 101 -Y "$year" -c "::CC-BY-SA-3.0-DE; © $year Podpiraten" --add-image=pipapo.jpg:FRONT_COVER:Logo --set-encoding=utf8 --to-v2.4 "$file" >/dev/null 2>&1
 	touch -d "@$ts" "$file"
-	echo -e "time\\t$ts" > "$file.digest"
+	printf 'time\t%d\n' "$ts" > "$file.digest"
 	for x in md5 sha1 sha256 sha512; do
-		echo -ne "$x\\t"
-		${x}sum -b "$file" | cut -d ' ' -f 1
+		printf '%s\t%s\n' "$x" "$(${x}sum -b "$file" | cut -d ' ' -f 1)"
 	done >> "$file.digest"
 	(./_header.sh "$title"; cat; ./_footer.sh "$title") > "$stem.html" <<EOF
 	<h2>$title</h2>
