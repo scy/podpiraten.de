@@ -54,7 +54,7 @@ for txt in media/*.txt; do
 
 	# If the MP3 does not exist, try to recreate it from split files.
 	if ! [ -e "$file" ]; then
-		splits="$(find "$(dirname "$file")" -name "$(basename "$file").?")"
+		splits="$(find "$(dirname "$file")" -name "$(basename "$file").?" | sort)"
 		if [ -z "$splits" ]; then
 			echo "error: $file does not exist and neither to split files for it" >&2
 			exit 1
